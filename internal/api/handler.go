@@ -3,11 +3,11 @@ package api
 import (
 	"net/http"
 
-	"github.com/gin-gonic/gin"
-
 	"algo-container-manager/internal/common"
 	"algo-container-manager/internal/model"
 	"algo-container-manager/internal/service"
+
+	"github.com/gin-gonic/gin"
 )
 
 type Handler struct {
@@ -24,14 +24,13 @@ func (h *Handler) StartAlgorithm(context *gin.Context) {
 		common.Fail(context, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := h.containerSvc.Start(req); err != nil {
+	result, err := h.containerSvc.Start(req)
+	if err != nil {
 		common.Fail(context, http.StatusInternalServerError, err.Error())
 		return
 	}
-	common.Success(context, gin.H{
-		"deploymentName": req.DeploymentName,
-		"serviceName":    req.ServiceName,
-	})
+
+	common.Success(context, result)
 }
 
 func (h *Handler) ListRuntimeContainers(context *gin.Context) {

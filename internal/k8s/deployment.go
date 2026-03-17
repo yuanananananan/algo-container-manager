@@ -1,9 +1,11 @@
 package k8s
 
 import (
-	"algo-container-manager/internal/model"
+	"algo-container-manager/internal/common"
 	"context"
 	"fmt"
+
+	"algo-container-manager/internal/model"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -18,29 +20,20 @@ func CreateDeployment(clientset *kubernetes.Clientset, req model.StartAlgorithmR
 	if req.DeploymentName == "" {
 		return fmt.Errorf("deployment name is required")
 	}
-	labels := map[string]string{
-		"app":                  deploymentName,
-		"algorithm-version-id": fmt.Sprintf("%d", req.AlgorithmVersionID),
-		"image-id":             fmt.Sprintf("%d", req.ImageID),
-	}
+
+	labels := common.BuildDeploymentLabels(req)
+
+	envVars := common.BuildEnvVars(req.Env)
 
 	replicas := req.Replicas
-	if replicas == 0 {
-		replicas = 1
-	}
-
-	envVars := []corev1.EnvVar{}
-	for k, v := range req.Env {
-		envVars = append(envVars, corev1.EnvVar{
-			Name:  k,
-			Value: v,
-		})
-	}
+	readyPath := req.ReadyPath
+	healthPath := req.HealthPath
 
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      deploymentName,
 			Namespace: req.Namespace,
+			Labels:    labels,
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: &replicas,
@@ -54,10 +47,12 @@ func CreateDeployment(clientset *kubernetes.Clientset, req model.StartAlgorithmR
 					Labels: labels,
 				},
 				Spec: corev1.PodSpec{
+					RestartPolicy: corev1.RestartPolicyAlways,
 					Containers: []corev1.Container{
 						{
-							Name:  deploymentName,
-							Image: req.Image,
+							Name:            deploymentName,
+							Image:           req.Image,
+							ImagePullPolicy: corev1.PullIfNotPresent,
 							Ports: []corev1.ContainerPort{
 								{ContainerPort: req.Port},
 							},
@@ -75,22 +70,27 @@ func CreateDeployment(clientset *kubernetes.Clientset, req model.StartAlgorithmR
 							ReadinessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
 									HTTPGet: &corev1.HTTPGetAction{
-										Path: "/",
+										Path: readyPath,
 										Port: intstr.FromInt32(req.Port),
 									},
 								},
 								InitialDelaySeconds: 5,
 								PeriodSeconds:       5,
+								TimeoutSeconds:      2,
+								FailureThreshold:    3,
+								SuccessThreshold:    1,
 							},
 							LivenessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
 									HTTPGet: &corev1.HTTPGetAction{
-										Path: "/",
+										Path: healthPath,
 										Port: intstr.FromInt32(req.Port),
 									},
 								},
 								InitialDelaySeconds: 10,
 								PeriodSeconds:       10,
+								TimeoutSeconds:      2,
+								SuccessThreshold:    1,
 							},
 						},
 					},

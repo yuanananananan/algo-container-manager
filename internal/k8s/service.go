@@ -17,23 +17,25 @@ func CreateService(clientset *kubernetes.Clientset, req model.StartAlgorithmRequ
 	if req.ServiceName == "" {
 		return fmt.Errorf("service name is required")
 	}
-	labels := map[string]string{
-		"app":       serviceName,
-		"algorithm": fmt.Sprintf("%d", req.AlgorithmVersionID),
+
+	selector := map[string]string{
+		"app": req.DeploymentName,
 	}
 
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      serviceName,
 			Namespace: req.Namespace,
+			Labels:    selector,
 		},
 		Spec: corev1.ServiceSpec{
-			Selector: labels,
+			Selector: selector,
 			Type:     corev1.ServiceTypeClusterIP,
 			Ports: []corev1.ServicePort{
 				{
 					Port:       req.Port,
 					TargetPort: intstr.FromInt32(req.Port),
+					Protocol:   corev1.ProtocolTCP,
 				},
 			},
 		},

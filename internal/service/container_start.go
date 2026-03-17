@@ -11,27 +11,39 @@ import (
 	"github.com/google/uuid"
 )
 
-func (s *ContainerService) Start(req model.StartAlgorithmRequest) error {
+func (s *ContainerService) Start(req model.StartAlgorithmRequest) (*model.StartResult, error) {
 	uid := uuid.New().String()
 
 	s.prepareStartRequest(&req, uid)
 
 	if err := k8s.CreateDeployment(s.clientset, req); err != nil {
-		return fmt.Errorf("create deployment failed: %w", err)
+		return nil, fmt.Errorf("create deployment failed: %w", err)
 	}
 
 	if err := k8s.CreateService(s.clientset, req); err != nil {
-		return fmt.Errorf("create service failed: %w", err)
+		_ = k8s.DeleteAlgorithm(s.clientset, req.Namespace, req.DeploymentName)
+		return nil, fmt.Errorf("create service failed: %w", err)
+	}
+	if err := k8s.CreatePDB(s.clientset, req); err != nil {
+		_ = k8s.DeleteAlgorithm(s.clientset, req.Namespace, req.DeploymentName)
+		_ = k8s.DeleteService(s.clientset, req.Namespace, req.ServiceName)
+		return nil, fmt.Errorf("create pdb failed: %w", err)
 	}
 
 	record := s.buildDeployRecord(req, uid)
 
 	if err := s.saveDeployRecord(record); err != nil {
+		_ = k8s.DeletePDB(s.clientset, req.Namespace, req.DeploymentName+"-pdb")
 		_ = k8s.DeleteAlgorithm(s.clientset, req.Namespace, req.DeploymentName)
-		return fmt.Errorf("save deploy record failed: %w", err)
+		_ = k8s.DeleteService(s.clientset, req.Namespace, req.ServiceName)
+		return nil, fmt.Errorf("save deploy record failed: %w", err)
 	}
 
-	return nil
+	return &model.StartResult{
+		DeploymentName: req.DeploymentName,
+		ServiceName:    req.ServiceName,
+		Namespace:      req.Namespace,
+	}, nil
 }
 
 func (s *ContainerService) prepareStartRequest(req *model.StartAlgorithmRequest, uid string) {
@@ -53,9 +65,23 @@ func (s *ContainerService) prepareStartRequest(req *model.StartAlgorithmRequest,
 	if req.Memory == "" {
 		req.Memory = "512Mi"
 	}
-	if req.Replicas == 0 {
+	if req.Replicas <= 0 {
 		req.Replicas = 1
 	}
+
+	if req.EnablePDB && req.MinAvailable <= 0 {
+		req.MinAvailable = 1
+	}
+	if req.EnablePDB && req.Replicas < 2 {
+		req.Replicas = 2
+	}
+	if req.ReadyPath == "" {
+		req.ReadyPath = "/ready"
+	}
+	if req.HealthPath == "" {
+		req.HealthPath = "/healthz"
+	}
+
 }
 
 func (s *ContainerService) buildDeployRecord(req model.StartAlgorithmRequest, uid string) model.DeployRecord {

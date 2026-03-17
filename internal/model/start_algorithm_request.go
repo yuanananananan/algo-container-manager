@@ -16,4 +16,10 @@ type StartAlgorithmRequest struct {
 	Env      map[string]string `json:"env"`
 	CPU      string            `json:"cpu"`
 	Memory   string            `json:"memory"`
+
+	HealthPath string `json:"healthPath"`
+	ReadyPath  string `json:"readyPath"`
+
+	EnablePDB    bool  `json:"enablePDB"`
+	MinAvailable int32 `json:"minAvailable"`
 }
