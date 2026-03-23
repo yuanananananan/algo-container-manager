@@ -58,10 +58,12 @@ func CreateDeployment(clientset *kubernetes.Clientset, req model.StartAlgorithmR
 							},
 							Env: envVars,
 							Resources: corev1.ResourceRequirements{
+								// 下限
 								Requests: corev1.ResourceList{
 									corev1.ResourceCPU:    resource.MustParse(req.CPU),
 									corev1.ResourceMemory: resource.MustParse(req.Memory),
 								},
+								// 上限
 								Limits: corev1.ResourceList{
 									corev1.ResourceCPU:    resource.MustParse(req.CPU),
 									corev1.ResourceMemory: resource.MustParse(req.Memory),
