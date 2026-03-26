@@ -94,6 +94,7 @@ func (s *ContainerService) buildDeployRecord(req model.StartAlgorithmRequest, ui
 		K8sServiceName:     req.ServiceName,
 		DeployStatus:       "deploying",
 		AccessEndpoint:     "",
+		IsDeleted:          0,
 	}
 }
 

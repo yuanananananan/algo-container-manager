@@ -16,15 +16,20 @@ func (s *ContainerService) List(namespace string) ([]model.ContainerInstance, er
 
 func (s *ContainerService) ListDeployRecords() ([]model.DeployRecord, error) {
 	var records []model.DeployRecord
-	if err := db.DB.Order("id desc").Find(&records).Error; err != nil {
+	if err := db.DB.
+		Where("is_deleted = ?", 0).
+		Order("is desc").
+		Find(&records).Error; err != nil {
 		return nil, err
 	}
-
 	for _, record := range records {
 		_, _ = s.GetStatus(record.K8sDeploymentName, record.Namespace)
 	}
 
-	if err := db.DB.Order("id desc").Find(&records).Error; err != nil {
+	if err := db.DB.
+		Where("is_deleted = ?", 0).
+		Order("is desc").
+		Find(&records).Error; err != nil {
 		return nil, err
 	}
 
@@ -62,16 +67,21 @@ func (s *ContainerService) GetStatus(name, namespace string) (map[string]interfa
 
 func (s *ContainerService) updateDeployStatus(name, namespace, status string) {
 	_ = db.DB.Model(&model.DeployRecord{}).
-		Where("k8s_deployment_name = ? AND namespace = ?", name, namespace).
+		Where("k8s_deployment_name = ? AND namespace = ? AND is_delete = ?", name, namespace, 0).
 		Update("deploy_status", status).Error
 }
 
 func (s *ContainerService) deleteDeployRecord(name, namespace string) error {
-	return db.DB.Where("k8s_deployment_name = ? AND namespace = ?", name, namespace).
-		Delete(&model.DeployRecord{}).Error
+	return db.DB.Where("k8s_deployment_name = ? AND namespace = ? AND is_delete = ?", name, namespace, 0).
+		Updates(map[string]interface{}{
+			"is_deleted":    1,
+			"deploy_status": "deleted",
+		}).Error
 }
 
 func (s *ContainerService) Delete(name, namespace string) error {
+	_ = k8s.DeletePDB(s.clientset, namespace, name+"-pdb")
+
 	if err := k8s.DeleteAlgorithm(s.clientset, namespace, name); err != nil {
 		return err
 	}

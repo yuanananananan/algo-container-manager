@@ -17,6 +17,8 @@ type DeployRecord struct {
 	DeployStatus   string `gorm:"type:varchar(16);index" json:"deployStatus"`
 	AccessEndpoint string `gorm:"type:varchar(255)" json:"accessEndpoint,omitempty"`
 
+	IsDeleted int `grom:"type:tinyint(1);not null; default:0; index" json:"isDeleted"`
+
 	DeployedAt time.Time `gorm:"autoCreateTime" json:"deployedAt"`
 	UpdatedAt  time.Time `gorm:"autoUpdateTime" json:"updatedAt"`
 }
